@@ -97,7 +97,6 @@ Contact us if you are interested in our Enterprise plan for large organizations 
 - [@cantoo/pdf-lib](https://github.com/cantoo-scribe/pdf-lib) - PDF manipulation
 - [Stripe](https://stripe.com/) - Payments
 - [Biome](https://biomejs.dev/) - Linting & Formatting
-- [Playwright](https://playwright.dev/) - E2E Testing
 
 <!-- - Support for [opensignpdf (requires Java on server)](https://github.com/open-pdf-sign) is currently planned. -->
 

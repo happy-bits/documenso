@@ -8,9 +8,6 @@
     "transports/",
     "index.ts"
   ],
-  "scripts": {
-    "test": "vitest"
-  },
   "dependencies": {
     "@google-cloud/kms": "^5.2.1",
     "@google-cloud/secret-manager": "^6.1.1",

@@ -10,8 +10,6 @@
     "universal/"
   ],
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
     "clean": "rimraf node_modules"
   },
   "dependencies": {
@@ -73,9 +71,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@playwright/browser-chromium": "1.56.1",
     "@types/luxon": "^3.7.1",
-    "@types/pg": "^8.15.6",
-    "vitest": "^4.0.18"
+    "@types/pg": "^8.15.6"
   }
 }

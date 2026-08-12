@@ -64,7 +64,6 @@ Documenso is an open-source document signing platform built as a **monorepo** us
 
 | Package                      | Description               |
 | ---------------------------- | ------------------------- |
-| `@documenso/app-tests`       | E2E tests (Playwright)    |
 | `@documenso/tailwind-config` | Shared Tailwind config    |
 | `@documenso/tsconfig`        | Shared TypeScript configs |
 
@@ -84,7 +83,6 @@ Documenso is an open-source document signing platform built as a **monorepo** us
 | PDF      | @libpdf/core, pdfjs-dist          |
 | i18n     | Lingui                            |
 | Build    | Turborepo, Vite                   |
-| Testing  | Playwright                        |
 
 ## API Architecture
 
@@ -333,9 +331,6 @@ npm run prisma:studio
 
 # Type checking (faster than build)
 npx tsc --noEmit
-
-# E2E tests
-npm run test:e2e
 ```
 
 ### Docker Services (Development)

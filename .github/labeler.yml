@@ -11,9 +11,6 @@
 '🚨 migrations 🚨':
   - packages/prisma/migrations/**/migration.sql
 
-'🚨 e2e changes 🚨':
-  - packages/app-tests/e2e/**
-
 '🚨 .env changes 🚨':
   - .env.example
 
