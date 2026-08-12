@@ -8,6 +8,7 @@ You'll need the Google Authenticator app installed on your phone.
 
 1. Make sure the local stack is running. If you have never set up this project's local dev environment before, run `npm run dx` instead — it installs dependencies, starts the Docker services, runs database migrations, and seeds the database in one step. Otherwise, run `npm run dev`.
 2. Reset the database to a known state: `npm run prisma:migrate-reset`. When prompted to confirm, type `y` and press Enter. This drops and recreates the database, then automatically seeds it with the account `example@documenso.com` / `password`.
+   > If you're repeating this guide often (e.g. for manual regression testing), `prisma:migrate-reset` re-runs migrations and seeding every time, which is slow. You can speed this up by building a seeded template database once with `npm run db:template:create`, then using `npm run db:template:reset` afterwards to reset in about a second instead. Re-run `db:template:create` whenever migrations or seed data change, since `db:template:reset` just clones whatever the template currently contains.
 3. Open `http://localhost:3000` in your browser.
 
 ## Steps

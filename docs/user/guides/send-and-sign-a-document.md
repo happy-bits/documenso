@@ -10,6 +10,7 @@ Step numbers are continuous across the whole guide, so "Step 12" always refers t
 2. Reset the database to a known state: `npm run prisma:migrate-reset`. When prompted to confirm, type `y` and press Enter. This drops and recreates the database, then automatically seeds it with two accounts, both with password `password`:
    - `admin@documenso.com`
    - `example@documenso.com`
+   > If you're repeating this guide often (e.g. for manual regression testing), `prisma:migrate-reset` re-runs migrations and seeding every time, which is slow. You can speed this up by building a seeded template database once with `npm run db:template:create`, then using `npm run db:template:reset` afterwards to reset in about a second instead. Re-run `db:template:create` whenever migrations or seed data change, since `db:template:reset` just clones whatever the template currently contains.
 3. Open `http://localhost:3000` in your browser.
 
 ## Steps
