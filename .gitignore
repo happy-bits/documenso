@@ -54,9 +54,6 @@ yarn-error.log*
 # logs
 logs.json
 
-# agents
-.specs
-
 # scripts
 scripts/output*
 scripts/bench-*
@@ -67,6 +64,3 @@ scripts/bench-*
 
 # tmp
 tmp/
-
-# opencode
-.opencode/package-lock.json
