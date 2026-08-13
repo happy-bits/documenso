@@ -1,0 +1,63 @@
+name: documenso-testing
+
+# Backing services for the e2e suite. Deliberately port-disjoint from
+# `docker/development/compose.yml` so a test run can never reach the database
+# you are developing against, and both stacks can be up at once.
+#
+# Brought up by `npm run test:e2e:services`, which uses `docker compose
+# --wait` so the command does not return until every healthcheck below
+# passes. `up -d` alone returns once containers are *created*, which is the
+# usual source of "connection refused" on a cold start.
+#
+# Only the services the suite actually needs are here: uploads go to the
+# database and jobs run in-process (see `.env.test`), so there is no MinIO or
+# Redis. Add them here — with a healthcheck — if a test ever needs them.
+
+services:
+  database:
+    image: postgres:15
+    container_name: documenso-testing-database
+    environment:
+      - POSTGRES_USER=documenso
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=documenso
+    # No named volume, unlike the development stack. Test state must never
+    # survive a run; `tmpfs` also keeps the template clone off disk entirely.
+    tmpfs:
+      - /var/lib/postgresql/data
+    # Durability is worthless for a database that is thrown away, and turning
+    # it off makes both seeding and the `CREATE DATABASE ... TEMPLATE` clone in
+    # `db:template:reset` measurably faster.
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - synchronous_commit=off
+    healthcheck:
+      # `-d documenso` matters: pg_isready succeeds against the postmaster
+      # slightly before the seeded database is connectable.
+      test: ['CMD-SHELL', 'pg_isready -U documenso -d documenso']
+      interval: 1s
+      timeout: 5s
+      retries: 60
+    ports:
+      - 54322:5432
+
+  inbucket:
+    image: inbucket/inbucket
+    container_name: documenso-testing-mailserver
+    healthcheck:
+      # Checks the SMTP port is accepting connections, which is what the app
+      # actually needs. The image has busybox nc but no curl, and its `sh` has
+      # no /dev/tcp.
+      test: ['CMD', 'nc', '-z', '127.0.0.1', '2500']
+      interval: 1s
+      timeout: 5s
+      retries: 60
+    ports:
+      - 9010:9000
+      - 2510:2500
+      - 1110:1100

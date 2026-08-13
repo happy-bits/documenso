@@ -9,6 +9,7 @@
     "dev": "npm run with:env -- react-router dev",
     "dev:billing": "bash .bin/stripe-dev.sh",
     "start": "npm run with:env -- cross-env NODE_ENV=production node build/server/main.js",
+    "start:test": "dotenv -e ../../.env.test -e ../../.env -- cross-env NODE_ENV=production node build/server/main.js",
     "clean": "rimraf .react-router && rimraf node_modules",
     "typecheck": "react-router typegen && tsc",
     "with:env": "dotenv -e ../../.env -e ../../.env.local --"

@@ -7,7 +7,11 @@ services:
     volumes:
       - documenso_database:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      # `$$` escapes the variable so Compose passes it through and the shell
+      # inside the container expands it. A single `$` would be interpolated by
+      # Compose on the host, where POSTGRES_USER is not set — that produced a
+      # bare `pg_isready -U` and left this container permanently unhealthy.
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,6 +25,7 @@ services:
   inbucket:
     image: inbucket/inbucket
     container_name: mailserver
+    # No healthcheck needed — the image defines its own.
     ports:
       - 9000:9000
       - 2500:2500
@@ -29,6 +34,11 @@ services:
   redis:
     image: redis:8-alpine
     container_name: redis
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
     ports:
       - 63790:6379
     volumes:
@@ -47,6 +57,11 @@ services:
       MINIO_ROOT_PASSWORD: password
     entrypoint: sh
     command: -c 'mkdir -p /data/documenso && minio server /data --console-address ":9001" --address ":9002"'
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9002/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   gotenberg:
     build:

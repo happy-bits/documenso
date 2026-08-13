@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const seedDatabase = async () => {
-  const files = fs.readdirSync(path.join(__dirname, './seed'));
+  // Sorted explicitly rather than relying on the platform's readdir order,
+  // since the seed modules are order-dependent.
+  const files = fs.readdirSync(path.join(__dirname, './seed')).sort();
 
   for (const file of files) {
     const stat = fs.statSync(path.join(__dirname, './seed', file));
@@ -14,12 +16,11 @@ const seedDatabase = async () => {
       if ('seedDatabase' in mod && typeof mod.seedDatabase === 'function') {
         console.log(`[SEEDING]: ${file}`);
 
-        try {
-          await mod.seedDatabase();
-        } catch (e) {
-          console.log(`[SEEDING]: Seed failed for ${file}`);
-          console.error(e);
-        }
+        // Deliberately not caught. A partially seeded database is not a valid
+        // starting state for anything downstream — especially e2e tests, where
+        // the seed *is* the fixture — so fail loudly here rather than let the
+        // run continue against unknown data.
+        await mod.seedDatabase();
       }
     }
   }
@@ -31,6 +32,7 @@ seedDatabase()
     process.exit(0);
   })
   .catch((error) => {
+    console.error('[SEEDING]: Failed');
     console.error(error);
     process.exit(1);
   });

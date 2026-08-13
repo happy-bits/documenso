@@ -1,0 +1,17 @@
+{
+  "name": "@documenso/app-tests",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "^20",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3"
+  }
+}

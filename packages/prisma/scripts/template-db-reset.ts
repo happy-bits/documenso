@@ -1,3 +1,6 @@
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+
 import { Client } from 'pg';
 
 /**
@@ -5,6 +8,10 @@ import { Client } from 'pg';
  * pre-seeded template built by `template-db-create.ts`. This is a
  * filesystem-level copy in Postgres, so it skips re-running migrations and
  * the (bcrypt-heavy) seed script on every test run.
+ *
+ * Builds the template first if it is missing, so this is safe to run against a
+ * brand new Postgres instance — the e2e stack keeps its data in tmpfs, so every
+ * fresh `docker compose up` starts without one.
  */
 const run = async () => {
   const databaseUrl = process.env.NEXT_PRIVATE_DATABASE_URL;
@@ -20,15 +27,32 @@ const run = async () => {
   const adminUrl = new URL(databaseUrl);
   adminUrl.pathname = '/postgres';
 
-  const admin = new Client({ connectionString: adminUrl.toString() });
-  await admin.connect();
+  const connectAdmin = async () => {
+    const client = new Client({ connectionString: adminUrl.toString() });
+    await client.connect();
+    return client;
+  };
 
-  const { rows } = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [templateDbName]);
+  const probe = await connectAdmin();
+
+  const { rows } = await probe.query('SELECT 1 FROM pg_database WHERE datname = $1', [templateDbName]);
+
+  // Release the connection before delegating: template-db-create.ts runs its
+  // own DROP/CREATE DATABASE and a `pg` client cannot be reconnected once
+  // ended, so the post-create work below uses a fresh one.
+  await probe.end();
 
   if (rows.length === 0) {
-    await admin.end();
-    throw new Error(`Template database "${templateDbName}" does not exist. Run "npm run db:template:create" first.`);
+    console.log(`[TEMPLATE DB]: "${templateDbName}" does not exist yet, building it`);
+
+    execSync('npx tsx ./scripts/template-db-create.ts', {
+      cwd: path.join(__dirname, '..'),
+      env: process.env,
+      stdio: 'inherit',
+    });
   }
+
+  const admin = await connectAdmin();
 
   console.log(`[TEMPLATE DB]: Terminating connections to "${dbName}"`);
   await admin.query(
