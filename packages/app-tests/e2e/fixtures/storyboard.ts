@@ -2,6 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 
+import { createDatabaseSnapshotter, type DatabaseSnapshot } from './database';
+
 /**
  * Captures a screenshot per guide step so a run can be rendered as an annotated
  * storyboard (`npm run test:e2e:storyboard`).
@@ -12,6 +14,12 @@ import type { Locator, Page } from '@playwright/test';
  * each captured step with that step's wording taken from the guide itself, so
  * the page shows what the guide says next to what the app did. Duplicating the
  * guide's prose into the spec would defeat that.
+ *
+ * Each capture also carries a snapshot of the envelope's own database rows
+ * (`setEnvelopeId` records which one), so the generator can show what the
+ * step did to the system alongside what it did on screen. Snapshotting is
+ * silently skipped before `setEnvelopeId` is called — the envelope does not
+ * exist yet, so there is nothing to read.
  */
 
 export const STORYBOARD_DIR = path.join(__dirname, '../../storyboard');
@@ -23,6 +31,7 @@ export type StoryboardShot = {
   label: string;
   actor: string;
   file: string;
+  db: DatabaseSnapshot | null;
 };
 
 export type Storyboard = {
@@ -49,12 +58,16 @@ export type Storyboard = {
     actor?: string;
     waitFor?: Locator | Locator[];
   }) => Promise<void>;
-  save: (meta: { spec: string; guide: string }) => void;
+  /** Records which envelope subsequent captures should snapshot the database for. */
+  setEnvelopeId: (envelopeId: string) => void;
+  save: (meta: { spec: string; guide: string }) => Promise<void>;
   enabled: boolean;
 };
 
 export const createStoryboard = (): Storyboard => {
   const shots: StoryboardShot[] = [];
+  const db = isEnabled ? createDatabaseSnapshotter() : null;
+  let envelopeId: string | null = null;
 
   if (isEnabled) {
     // Cleared per run so a storyboard never mixes shots from two runs, which
@@ -65,6 +78,10 @@ export const createStoryboard = (): Storyboard => {
 
   return {
     enabled: isEnabled,
+
+    setEnvelopeId: (id) => {
+      envelopeId = id;
+    },
 
     capture: async ({ page, step, label, actor = 'Sender', waitFor }) => {
       if (!isEnabled) {
@@ -79,13 +96,17 @@ export const createStoryboard = (): Storyboard => {
 
       await page.screenshot({ path: path.join(STORYBOARD_DIR, file) });
 
-      shots.push({ step, label, actor, file });
+      const snapshot = envelopeId && db ? await db.snapshot(envelopeId) : null;
+
+      shots.push({ step, label, actor, file, db: snapshot });
     },
 
-    save: (meta) => {
+    save: async (meta) => {
       if (!isEnabled) {
         return;
       }
+
+      await db?.close();
 
       writeFileSync(
         path.join(STORYBOARD_DIR, 'storyboard.json'),

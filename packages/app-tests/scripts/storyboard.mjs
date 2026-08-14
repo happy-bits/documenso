@@ -13,6 +13,12 @@
  * Steps the guide describes but the run never captured are listed too, so the
  * page cannot be mistaken for full coverage of the guide.
  *
+ * Each panel also renders the envelope's database rows as of that step,
+ * alongside the screenshot, with cells that changed since the *previous*
+ * captured step highlighted — so the page shows what the guide's action did
+ * to the system, not just to the screen. Steps before the envelope exists (the
+ * initial sign-in) have no data to show.
+ *
  * Usage:
  *   npm run test:e2e:storyboard                      capture a run, then render
  *   node packages/app-tests/scripts/storyboard.mjs   re-render the last capture
@@ -74,6 +80,112 @@ const parseGuideSteps = (markdown) => {
   return new Map([...steps].map(([number, step]) => [number, step.lines.join(' ')]));
 };
 
+/**
+ * Wraps a rendered cell in a `changed` marker when `wasChanged` is true. The
+ * generator decides *what* counts as changed per table below; this just
+ * applies the visual treatment consistently.
+ */
+const cell = (value, wasChanged) => `<td class="${wasChanged ? 'changed' : ''}">${escapeHtml(String(value))}</td>`;
+
+/**
+ * Diffs one snapshot's rows against the previous captured step's, by row
+ * index rather than identity — each table (recipients, fields) is created
+ * once up front and only ever updated in place, so index alignment holds for
+ * the whole run.
+ */
+const renderDbPanel = (snapshot, previous) => {
+  if (!snapshot?.envelope) {
+    return '<p class="db-empty">No envelope yet.</p>';
+  }
+
+  const prevEnvelope = previous?.envelope ?? null;
+
+  const envelopeRow = `
+    <table class="db-table">
+      <tr>${cell('status', false)}${cell('completed', false)}</tr>
+      <tr>${cell(snapshot.envelope.status, snapshot.envelope.status !== prevEnvelope?.status)}${cell(
+        snapshot.envelope.completedAt,
+        snapshot.envelope.completedAt !== (prevEnvelope?.completedAt ?? false),
+      )}</tr>
+    </table>`;
+
+  const recipientRows = snapshot.recipients
+    .map((recipient, index) => {
+      const prev = previous?.recipients?.[index];
+
+      return `<tr>
+        ${cell(recipient.name, false)}
+        ${cell(recipient.role, prev && recipient.role !== prev.role)}
+        ${cell(recipient.sendStatus, prev && recipient.sendStatus !== prev.sendStatus)}
+        ${cell(recipient.signingStatus, prev && recipient.signingStatus !== prev.signingStatus)}
+        ${cell(recipient.readStatus, prev && recipient.readStatus !== prev.readStatus)}
+        ${cell(recipient.signedAt, prev && recipient.signedAt !== prev.signedAt)}
+      </tr>`;
+    })
+    .join('\n');
+
+  const fieldRows = snapshot.fields
+    .map((field, index) => {
+      const prev = previous?.fields?.[index];
+
+      return `<tr>
+        ${cell(field.type, !prev)}
+        ${cell(field.recipient, false)}
+        ${cell(field.page, false)}
+        ${cell(field.inserted, prev && field.inserted !== prev.inserted)}
+      </tr>`;
+    })
+    .join('\n');
+
+  const signatureRows = snapshot.signatures
+    .map((signature, index) => {
+      const isNew = !previous?.signatures?.[index];
+
+      return `<tr>${cell(signature.recipient, isNew)}${cell(signature.method, isNew)}</tr>`;
+    })
+    .join('\n');
+
+  // The audit log only ever grows, in order, so anything past the previous
+  // snapshot's length is new — no need to diff row by row.
+  const newAuditLogCount = snapshot.auditLog.length - (previous?.auditLog?.length ?? 0);
+
+  return `
+    <div class="db">
+      <p class="db-heading">Envelope</p>
+      ${envelopeRow}
+      ${
+        recipientRows
+          ? `<p class="db-heading">Recipients</p>
+      <table class="db-table">
+        <tr><th>Name</th><th>Role</th><th>Send</th><th>Signing</th><th>Read</th><th>Signed</th></tr>
+        ${recipientRows}
+      </table>`
+          : ''
+      }
+      ${
+        fieldRows
+          ? `<p class="db-heading">Fields</p>
+      <table class="db-table">
+        <tr><th>Type</th><th>Recipient</th><th>Page</th><th>Inserted</th></tr>
+        ${fieldRows}
+      </table>`
+          : ''
+      }
+      ${
+        signatureRows
+          ? `<p class="db-heading">Signatures</p>
+      <table class="db-table">
+        <tr><th>Recipient</th><th>Method</th></tr>
+        ${signatureRows}
+      </table>`
+          : ''
+      }
+      <p class="db-heading">Audit log <span class="db-count">${snapshot.auditLog.length} row${
+        snapshot.auditLog.length === 1 ? '' : 's'
+      }${newAuditLogCount > 0 ? `, +${newAuditLogCount} this step` : ''}</span></p>
+    </div>`;
+};
+
 const main = () => {
   const metaPath = path.join(STORYBOARD_DIR, 'storyboard.json');
 
@@ -91,11 +203,13 @@ const main = () => {
   const captured = new Set(meta.shots.map((shot) => shot.step));
   const missing = [...guideSteps.keys()].filter((step) => !captured.has(step)).sort((a, b) => a - b);
 
-  const panels = meta.shots
-    .sort((a, b) => a.step - b.step)
-    .map((shot) => {
+  const sortedShots = meta.shots.sort((a, b) => a.step - b.step);
+
+  const panels = sortedShots
+    .map((shot, index) => {
       const image = readFileSync(path.join(STORYBOARD_DIR, shot.file)).toString('base64');
       const guideText = guideSteps.get(shot.step);
+      const previous = index > 0 ? sortedShots[index - 1].db : null;
 
       return `
       <figure class="panel">
@@ -110,6 +224,10 @@ const main = () => {
           <blockquote>${
             guideText ? renderInline(guideText) : '<em>No step with this number in the guide.</em>'
           }</blockquote>
+          <details class="db-details">
+            <summary>Database</summary>
+            ${renderDbPanel(shot.db ?? null, previous)}
+          </details>
         </figcaption>
       </figure>`;
     })
@@ -170,9 +288,10 @@ const main = () => {
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--quote); padding: 0.1em 0.32em; border-radius: 4px; }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 1.25rem;
-    margin-top: 2rem;
+    grid-template-columns: 1fr;
+    max-width: 860px;
+    margin: 2rem auto 0;
+    gap: 1.5rem;
   }
   .panel {
     margin: 0;
@@ -203,6 +322,17 @@ const main = () => {
   .note strong { color: var(--ink); }
   .note ul { margin: 0.6rem 0 0; padding-left: 1.1rem; }
   .note li { margin-bottom: 0.3rem; }
+
+  .db-details { margin-top: 0.7rem; }
+  .db-details summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
+  .db-empty { color: var(--muted); font-size: 0.82rem; margin: 0.5rem 0 0; }
+  .db { margin-top: 0.5rem; max-width: 100%; overflow-x: auto; }
+  .db-heading { margin: 0.7rem 0 0.3rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .db-count { text-transform: none; letter-spacing: 0; }
+  .db-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .db-table th, .db-table td { text-align: left; padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .db-table th { color: var(--muted); font-weight: 500; }
+  .db-table td.changed { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; font-weight: 600; }
 </style>
 
 <main>

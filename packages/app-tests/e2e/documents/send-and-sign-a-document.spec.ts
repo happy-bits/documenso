@@ -67,8 +67,16 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
       buffer: fs.readFileSync(EXAMPLE_PDF),
     });
 
-  await page.waitForURL(/\/documents\/[^/]+\/edit/, { timeout: STEP_TIMEOUT });
+  await page.waitForURL(/\/documents\/([^/]+)\/edit/, { timeout: STEP_TIMEOUT });
   log(`editor opened at ${page.url()}`);
+
+  const envelopeId = /\/documents\/([^/]+)\/edit/.exec(page.url())?.[1];
+
+  if (!envelopeId) {
+    throw new Error(`Could not extract an envelope id from ${page.url()}`);
+  }
+
+  storyboard.setEnvelopeId(envelopeId);
 
   // Not in the guide: give the document a known title so it can be found in the
   // list later, independent of how many other documents the account has.
@@ -227,7 +235,7 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
 
   await storyboard.capture({ page, step: 18, label: 'the document listed as Completed' });
 
-  storyboard.save({
+  await storyboard.save({
     spec: 'packages/app-tests/e2e/documents/send-and-sign-a-document.spec.ts',
     guide: 'docs/user/guides/send-and-sign-a-document.md',
   });
