@@ -1,4 +1,8 @@
 test-results/
 playwright-report/
+# Screenshots and the rendered page from `npm run test:e2e:storyboard`. Output
+# of a run, regenerated on demand — several MB of PNGs that would otherwise be
+# committed on every capture.
+storyboard/
 playwright/.cache/
 logs.json

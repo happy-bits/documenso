@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test';
 
 import { ADMIN_USER, apiSignin } from '../fixtures/authentication';
 import { clearMailbox, extractSigningUrl, waitForEmail } from '../fixtures/mail';
+import { createStoryboard } from '../fixtures/storyboard';
 
 /**
  * Covers `docs/user/guides/send-and-sign-a-document.md`: upload a PDF, add a
@@ -39,6 +40,9 @@ const log = (message: string) => console.log(`[send-and-sign] ${message}`);
 test('a document can be uploaded, sent, signed by the recipient, and completed', async ({ page, request }) => {
   const title = `E2E Send And Sign ${Date.now()}`;
 
+  // No-op unless STORYBOARD=1; see the fixture.
+  const storyboard = createStoryboard();
+
   // Inbucket lives in the container and outlives the per-run database reset, so
   // yesterday's invite must not be able to satisfy today's assertion.
   await clearMailbox({ request, mailbox: RECIPIENT.mailbox });
@@ -48,6 +52,7 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
   log(`signing in as ${ADMIN_USER.email}`);
   await apiSignin({ page, email: ADMIN_USER.email, password: ADMIN_USER.password, redirectPath: '/documents' });
   await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible({ timeout: STEP_TIMEOUT });
+  await storyboard.capture({ page, step: 5, label: 'the Documents list, signed in as admin' });
 
   // Step 6: drop a PDF onto the page. Playwright cannot synthesise a real HTML5
   // file drag, so this drives the dropzone's own file input instead — the same
@@ -68,12 +73,21 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
   // Not in the guide: give the document a known title so it can be found in the
   // list later, independent of how many other documents the account has.
   await page.getByTestId('envelope-title-input').fill(title);
+  await storyboard.capture({
+    page,
+    step: 6,
+    label: 'example.pdf uploaded and listed in the editor',
+    // The upload page lists the envelope's items; the row appearing is what
+    // shows the upload registered, rather than an empty dropzone.
+    waitFor: page.locator('[data-testid^="envelope-item-row-"]').first(),
+  });
 
   // Step 7: on Document & Recipients, add Jane as a Signer (the default role,
   // so it is left alone), then move to Add Fields.
   log('adding recipient');
   await page.getByTestId('signer-email-input').first().fill(RECIPIENT.email);
   await page.locator('input[placeholder^="Recipient "]').first().fill(RECIPIENT.name);
+  await storyboard.capture({ page, step: 7, label: 'Jane Recipient added as a Signer' });
 
   // Step 8: select Jane and place a Signature field. The guide describes a drag
   // from the field palette; the editor also supports click-the-field then
@@ -89,11 +103,22 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
   const canvas = page.locator('.konva-container canvas').first();
   await expect(canvas).toBeVisible({ timeout: STEP_TIMEOUT });
   await canvas.click({ position: { x: 200, y: 200 } });
+  await storyboard.capture({ page, step: 8, label: 'a Signature field placed on the page' });
 
   // Step 9: open Preview. The guide's eyeball check of the document and
   // recipient has no automated equivalent, so this only navigates.
   log('opening send dialog');
   await page.getByTestId('envelope-editor-step-preview').first().click();
+  await storyboard.capture({
+    page,
+    step: 9,
+    label: 'the Preview step',
+    // The alert first: it only exists on Preview, so waiting for it guarantees
+    // the Add Fields view has gone. Waiting for the page image alone would be
+    // satisfied by the image the previous step had already rendered, and the
+    // screenshot would catch Preview mid-load.
+    waitFor: [page.getByText('Preview Mode'), page.locator('img[data-page-number]').first()],
+  });
 
   // Step 10: Send Document, then Send in the dialog with its default settings.
   // Two "Send Document" buttons exist — the editor header's and the side
@@ -101,6 +126,8 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
   await page.locator('button[title="Send Envelope"]').click();
 
   await expect(page.getByRole('heading', { name: 'Send Document' })).toBeVisible({ timeout: STEP_TIMEOUT });
+  await storyboard.capture({ page, step: 10, label: 'the Send Document dialog, with its default settings' });
+
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 
   // Step 11: the document shows as Pending. The guide says sending returns you
@@ -112,6 +139,7 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
 
   const documentRow = page.getByRole('row').filter({ hasText: title });
   await expect(documentRow).toContainText('Pending', { timeout: STEP_TIMEOUT });
+  await storyboard.capture({ page, step: 11, label: 'the document listed as Pending' });
 
   // Steps 12-14: read the invitation out of Inbucket and follow its signing
   // link. The guide clicks through Inbucket's Monitor UI; this queries its REST
@@ -131,12 +159,24 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
   // Step 12: a separate context stands in for the guide's incognito window —
   // the recipient must not be signing while carrying the sender's session
   // cookie, and the sender's page has to stay signed in for the final check.
-  const recipientContext = await page.context().browser()!.newContext();
+  const browser = page.context().browser();
+
+  if (!browser) {
+    throw new Error('The page is not attached to a browser, so the recipient cannot get their own context.');
+  }
+
+  const recipientContext = await browser.newContext();
   const recipientPage = await recipientContext.newPage();
 
   try {
     await recipientPage.goto(signingUrl);
     await expect(recipientPage.locator('.konva-container canvas').first()).toBeVisible({ timeout: STEP_TIMEOUT });
+    await storyboard.capture({
+      page: recipientPage,
+      step: 14,
+      actor: 'Recipient',
+      label: "the signing page, opened from the email's link",
+    });
 
     // Step 15: the guide draws the signature by hand. The pad's Type tab
     // produces the same inserted signature without synthesised strokes.
@@ -153,6 +193,12 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
       .first()
       .click({ position: { x: 200, y: 200 } });
     await expect(recipientPage.getByText('0 Fields Remaining').first()).toBeVisible({ timeout: STEP_TIMEOUT });
+    await storyboard.capture({
+      page: recipientPage,
+      step: 15,
+      actor: 'Recipient',
+      label: 'the signature inserted into the field',
+    });
 
     // Step 16: Complete, then confirm with Sign in the dialog.
     log('completing');
@@ -161,6 +207,12 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
     await recipientPage.getByRole('button', { name: 'Sign', exact: true }).click();
 
     await expect(recipientPage.getByText('Document Signed')).toBeVisible({ timeout: STEP_TIMEOUT });
+    await storyboard.capture({
+      page: recipientPage,
+      step: 16,
+      actor: 'Recipient',
+      label: 'the document signed',
+    });
   } finally {
     await recipientContext.close();
   }
@@ -172,6 +224,13 @@ test('a document can be uploaded, sent, signed by the recipient, and completed',
     await page.reload();
     await expect(page.getByRole('row').filter({ hasText: title })).toContainText('Completed', { timeout: 2_000 });
   }).toPass({ timeout: STEP_TIMEOUT });
+
+  await storyboard.capture({ page, step: 18, label: 'the document listed as Completed' });
+
+  storyboard.save({
+    spec: 'packages/app-tests/e2e/documents/send-and-sign-a-document.spec.ts',
+    guide: 'docs/user/guides/send-and-sign-a-document.md',
+  });
 
   log('done');
 });
