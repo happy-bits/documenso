@@ -31,6 +31,7 @@
     "test:e2e:build": "npm run translate:compile && turbo run build --filter=@documenso/remix",
     "test:e2e:run": "npm run with:env:test -- npm run test:e2e -w @documenso/app-tests",
     "test:e2e:ui": "npm run with:env:test -- npm run test:e2e:ui -w @documenso/app-tests",
+    "test:e2e:timeline": "node packages/app-tests/scripts/timeline.mjs",
     "prisma:generate": "npm run with:env -- npm run prisma:generate -w @documenso/prisma",
     "prisma:migrate-dev": "npm run with:env -- npm run prisma:migrate-dev -w @documenso/prisma",
     "prisma:migrate-deploy": "npm run with:env -- npm run prisma:migrate-deploy -w @documenso/prisma",
