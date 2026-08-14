@@ -10,6 +10,15 @@ export const TEST_USER = {
 };
 
 /**
+ * The admin account created by `packages/prisma/seed/initial-seed.ts`. It owns
+ * no seeded documents, so a test that creates one starts from an empty list.
+ */
+export const ADMIN_USER = {
+  email: process.env.E2E_ADMIN_USER_EMAIL ?? 'admin@documenso.com',
+  password: process.env.E2E_ADMIN_USER_PASSWORD ?? 'password',
+};
+
+/**
  * Signs in through the sign-in form, the way a user would.
  *
  * Prefer `apiSignin` for tests that merely need to *be* authenticated — this
