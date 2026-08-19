@@ -18,6 +18,7 @@ import { z } from 'zod';
 export const ZProfileFormSchema = z.object({
   name: ZNameSchema,
   signature: z.string().min(1, { message: msg`Signature Pad cannot be empty.`.id }),
+  jobTitle: z.string().trim().max(100, { message: msg`Job title cannot be more than 100 characters.`.id }).nullish(),
 });
 
 export const ZTwoFactorAuthTokenSchema = z.object({
@@ -40,6 +41,7 @@ export const ProfileForm = ({ className }: ProfileFormProps) => {
     values: {
       name: user.name ?? '',
       signature: user.signature || '',
+      jobTitle: user.jobTitle ?? '',
     },
     resolver: zodResolver(ZProfileFormSchema),
   });
@@ -48,11 +50,12 @@ export const ProfileForm = ({ className }: ProfileFormProps) => {
 
   const { mutateAsync: updateProfile } = trpc.profile.updateProfile.useMutation();
 
-  const onFormSubmit = async ({ name, signature }: TProfileFormSchema) => {
+  const onFormSubmit = async ({ name, signature, jobTitle }: TProfileFormSchema) => {
     try {
       await updateProfile({
         name,
         signature,
+        jobTitle,
       });
 
       await refreshSession();
@@ -87,6 +90,22 @@ export const ProfileForm = ({ className }: ProfileFormProps) => {
                 </FormLabel>
                 <FormControl>
                   <Input type="text" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="jobTitle"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  <Trans>Job Title</Trans>
+                </FormLabel>
+                <FormControl>
+                  <Input type="text" {...field} value={field.value ?? ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

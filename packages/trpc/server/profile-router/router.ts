@@ -25,12 +25,13 @@ export const profileRouter = router({
     }),
 
   updateProfile: authenticatedProcedure.input(ZUpdateProfileMutationSchema).mutation(async ({ input, ctx }) => {
-    const { name, signature } = input;
+    const { name, signature, jobTitle } = input;
 
     await updateProfile({
       userId: ctx.user.id,
       name,
       signature,
+      jobTitle,
       requestMetadata: ctx.metadata.requestMetadata,
     });
   }),

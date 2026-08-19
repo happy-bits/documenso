@@ -7,10 +7,11 @@ export type UpdateProfileOptions = {
   userId: number;
   name: string;
   signature: string;
+  jobTitle?: string | null;
   requestMetadata?: RequestMetadata;
 };
 
-export const updateProfile = async ({ userId, name, signature, requestMetadata }: UpdateProfileOptions) => {
+export const updateProfile = async ({ userId, name, signature, jobTitle, requestMetadata }: UpdateProfileOptions) => {
   // Existence check
   await prisma.user.findFirstOrThrow({
     where: {
@@ -35,6 +36,7 @@ export const updateProfile = async ({ userId, name, signature, requestMetadata }
       data: {
         name,
         signature,
+        jobTitle,
       },
     });
   });

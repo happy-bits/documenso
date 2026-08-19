@@ -11,6 +11,7 @@ export type TFindUserSecurityAuditLogsSchema = z.infer<typeof ZFindUserSecurityA
 export const ZUpdateProfileMutationSchema = z.object({
   name: ZNameSchema,
   signature: z.string(),
+  jobTitle: z.string().trim().max(100, { message: 'Job title cannot be more than 100 characters.' }).nullish(),
 });
 
 export type TUpdateProfileMutationSchema = z.infer<typeof ZUpdateProfileMutationSchema>;

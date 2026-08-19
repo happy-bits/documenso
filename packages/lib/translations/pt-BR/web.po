@@ -6792,6 +6792,14 @@ msgstr ""
 msgid "Japanese"
 msgstr ""
 
+#: apps/remix/app/components/forms/profile.tsx
+msgid "Job Title"
+msgstr ""
+
+#: apps/remix/app/components/forms/profile.tsx
+msgid "Job title cannot be more than 100 characters."
+msgstr ""
+
 #: packages/email/templates/organisation-invite.tsx
 msgid "Join {organisationName} on Documenso"
 msgstr "Junte-se a {organisationName} no Documenso"
