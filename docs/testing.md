@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide explains what tests exist in Documenso, why they exist, and how to run them. It ends with two hands-on walkthroughs: break a unit test, then break an end-to-end test, so you can see the safety net in action before you start changing real code.
+This guide explains what tests exist in Documenso, why they exist, and how to run them — including how to break one on purpose, so you can see the safety net in action before you start changing real code.
 
 > **Prerequisite:** this guide assumes your local dev environment is already set up (Node, Docker services, database migrated and seeded). If it isn't, run the `getting-started` skill first (`/getting-started` in Claude Code, or see `CONTRIBUTING.md`). If something is broken, use the `troubleshoot` skill.
 
@@ -36,19 +36,34 @@ Examples: `packages/app-tests/e2e/api/v2/envelopes-api.spec.ts` (api), `packages
 
 ## How to run the tests
 
+Run a single test first, widen the net later. Starting narrow gives you a fast feedback loop — if something's misconfigured (env, Docker, a bad seed), you find out in seconds against one test instead of minutes into a 1,000+ test run, and the failure is much easier to pin down.
+
 ### Unit tests
+
+Start with one file:
 
 ```sh
 cd packages/lib
-npm run test         # runs once (vitest run)
-npm run test:watch   # re-runs on file changes
+npm run test -- utils/recipients.test.ts   # one file, runs once
+npm run test:watch -- utils/recipients.test.ts   # same file, re-runs on save
 ```
 
-(`packages/signing` has its own `npm run test` the same way.)
+This should take approx 0.3s
+
+Once that's green, widen to the whole package:
+
+```sh
+npm run test         # every *.test.ts in packages/lib (vitest run)
+npm run test:watch   # same, re-runs on any change
+```
+
+"npm run test" should take approx 1s
+
+To see a test actually catch something, change a line in `packages/lib/utils/recipients.ts` (the logic behind `recipients.test.ts`) and re-run `npm run test -- utils/recipients.test.ts` — it should fail. Revert the change and re-run to confirm it's green again.
 
 ### End-to-end tests
 
-Make sure your dev services are up and the database is seeded (skip if already done):
+Bring up dev services and seed the database (skip if already done):
 
 ```sh
 npm run dx:up
@@ -56,128 +71,59 @@ npm run prisma:migrate-dev
 npm run prisma:seed
 ```
 
-Then, from `packages/app-tests`:
+> **Troubleshooting:** if any of these fail, run the `troubleshoot` skill (`/troubleshoot`) instead of debugging by hand — it checks Docker, ports, `.env`, and the database in one pass.
+
+Start the app in its own terminal, from `apps/remix`, and leave it running:
 
 ```sh
-npm run test:dev       # run against an app you already have running (npm run dev)
-npm run test-ui:dev    # same, but opens Playwright's interactive UI mode
-npm run test:e2e       # builds and starts the app itself, then runs all specs — closest to CI
+cd apps/remix
+npm run start
 ```
 
-To run a single spec file instead of the whole suite, pass a path:
+> **Troubleshooting:** don't use the root `npm run start` — it also starts `@documenso/docs`, which defaults to the same port 3000 as `@documenso/remix` and can crash one of them with `EADDRINUSE :::3000`. Running `apps/remix` directly avoids that. If port 3000 is still stuck from something else, find and stop it: `lsof -i :3000` then `kill <PID>`.
+>
+> **Troubleshooting:** running the same test repeatedly (e.g. signup/login flows) can trip the app's real rate limits — a request that should succeed comes back `429`, and the test hangs waiting on a navigation that never happens. Set `DANGEROUS_BYPASS_RATE_LIMITS=true` in `.env` before starting the app to disable rate limiting locally — this is what CI does too (`.github/workflows/e2e-tests.yml`). After changing `.env` restart the app.
+
+Run a single spec file first, from `packages/app-tests`:
 
 ```sh
+cd packages/app-tests
 npm run test:dev -- e2e/user/auth-flow.spec.ts
 ```
 
-## Walkthrough: break a unit test
+Approx 6 seconds.
 
-This shows the value of the test — it should fail loudly the moment the logic it protects changes.
+> **Troubleshooting:** `ECONNREFUSED ::1:3000` means the app from the previous step isn't up yet — go back and confirm it's serving on `localhost:3000`.
 
-1. Run the recipients test suite and confirm it's green:
+To watch the browser while a test runs, add `--headed`:
 
-   ```sh
-   cd packages/lib
-   npm run test -- utils/recipients.test.ts
-   ```
+```sh
+npm run test:dev -- --headed e2e/user/auth-flow.spec.ts
+```
 
-   You should see all tests in `recipients.test.ts` pass, including *"sorts CC recipients after ordered active recipients"*.
+> **Troubleshooting:** Playwright's interactive UI mode (`npm run test-ui:dev`) can hang and time out on a test that passes fine both headless and headed — this has been observed even with trace and video both disabled, so it's specific to UI mode's own reporter, not your test or the app. 
 
-2. Open `packages/lib/utils/recipients.ts` and find `sortRecipientsForSigningOrder`:
 
-   ```ts
-   // CC recipients always sort after non-CC recipients.
-   if (r1IsCcRecipient !== r2IsCcRecipient) {
-     return r1IsCcRecipient ? 1 : -1;
-   }
-   ```
+Running with UI should be like this, but I get timeout
 
-   Flip the ternary so CC recipients sort *before* everyone else instead of after:
+```sh
+npm run test-ui:dev -- e2e/user/auth-flow.spec.ts
+```
 
-   ```ts
-   return r1IsCcRecipient ? -1 : 1;
-   ```
+## Running many tests at once
 
-3. Re-run the test:
+These commands cover more ground than a single spec, so expect them to take minutes, not seconds — only reach for them once single specs are passing reliably.
 
-   ```sh
-   npm run test -- utils/recipients.test.ts
-   ```
+Scope up to one whole test project:
 
-   `sorts CC recipients after ordered active recipients` now fails — the expected recipient order `[3, 2, 1]` no longer matches, because CC recipient `id: 1` sorts to the front instead of the back.
+```sh
+npm run test:dev -- --project=api   # ~466 tests, no browser, ~1–3 min
+```
 
-4. Revert the change in `recipients.ts` and re-run to confirm it's green again.
+Only run everything once you trust the setup:
 
-## Walkthrough: break an end-to-end test (API project)
+```sh
+npm run test:dev
+```
 
-1. Get the app running in one terminal:
-
-   ```sh
-   npm run dev
-   ```
-
-2. In another terminal, run the envelopes API spec:
-
-   ```sh
-   cd packages/app-tests
-   npm run test:dev -- e2e/api/v2/envelopes-api.spec.ts
-   ```
-
-   Confirm `should create envelope with single file` passes.
-
-3. Open `packages/trpc/server/envelope-router/create-envelope.ts` and find where each uploaded file becomes an envelope item:
-
-   ```ts
-   return {
-     title: file.name,
-     documentDataId: documentData.id,
-     placeholders,
-   };
-   ```
-
-   Change `title: file.name` to something that ignores the real filename, e.g. `title: 'renamed-file'`.
-
-4. Re-run the spec:
-
-   ```sh
-   npm run test:dev -- e2e/api/v2/envelopes-api.spec.ts
-   ```
-
-   `should create envelope with single file` now fails on:
-
-   ```
-   expect(envelope?.envelopeItems[0].title).toBe('field-font-alignment.pdf')
-   ```
-
-   because the created envelope item is now titled `renamed-file` instead of the uploaded PDF's filename.
-
-5. Revert the change in `create-envelope.ts`.
-
-## Walkthrough: break an end-to-end test (UI project)
-
-1. With the app running (`npm run dev`), open Playwright's UI mode for the auth flow spec:
-
-   ```sh
-   cd packages/app-tests
-   npm run test-ui:dev -- e2e/user/auth-flow.spec.ts
-   ```
-
-   Run `[USER] can sign in using email and password` and confirm it passes — you can watch the browser steps in the UI mode timeline.
-
-2. Open `apps/remix/app/components/forms/signin.tsx` and find the sign-in button label:
-
-   ```tsx
-   {isSubmitting ? <Trans>Signing in...</Trans> : <Trans>Sign In</Trans>}
-   ```
-
-   Change `Sign In` to `Log In`.
-
-3. Re-run the same test in Playwright UI mode. It now fails on:
-
-   ```ts
-   await page.getByRole('button', { name: 'Sign In' }).click();
-   ```
-
-   Playwright times out looking for a button named "Sign In" — the UI mode view highlights the missing element and shows a screenshot of the actual page, where the button now reads "Log In".
-
-4. Revert the label change in `signin.tsx`.
+> **Troubleshooting:** this runs all ~1,100 tests across all three projects (`api`, `ui`, `license`) and takes roughly **20–30 minutes**, dominated by the browser-driven `ui` project — expect it to be slow, and expect a failure to take longer to pin down than in a single spec.
