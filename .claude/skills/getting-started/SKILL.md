@@ -20,7 +20,7 @@ fixes. If problems are found, report them and let the user decide (or run
 2. **Show the commands to run the site**, explained rather than just listed:
 
    - First time only: `npm run dx` — installs deps, brings up the Docker
-     services (Postgres, Redis, MinIO, Inbucket, Gotenberg), runs Prisma
+     services (Postgres, Redis, Inbucket, Gotenberg), runs Prisma
      migrations, and seeds the database.
    - Every day after that: `npm run dev` — compiles translations and starts
      the Remix app (`apps/remix`) via Turbo.
@@ -30,8 +30,7 @@ fixes. If problems are found, report them and let the user decide (or run
    - Useful side tools started by Docker: Inbucket (fake mail catcher) at
      **http://localhost:9000** — every "verify your email" / signing
      notification email sent by the dev app lands here instead of a real
-     inbox. MinIO console at **http://localhost:9001** for uploaded file
-     storage.
+     inbox.
    - `npm run prisma:studio` opens a GUI over the database.
    - `npm run prisma:seed` re-seeds demo data if needed (safe to re-run —
      the seed script checks for existing users first).
@@ -65,7 +64,7 @@ fixes. If problems are found, report them and let the user decide (or run
      up in Inbucket locally).
    - `packages/ui` — the shared component library used across apps.
    - `packages/ee` — enterprise-only features, gated separately.
-   - Local infra (Postgres, Redis, MinIO, Inbucket, Gotenberg for PDF
+   - Local infra (Postgres, Redis, Inbucket, Gotenberg for PDF
      rendering) all runs via `docker/development/compose.yml`, brought up
      by `npm run dx:up`.
 

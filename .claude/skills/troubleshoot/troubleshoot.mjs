@@ -114,7 +114,7 @@ function checkDockerRunning() {
 }
 
 const COMPOSE_FILE = 'docker/development/compose.yml';
-const COMPOSE_SERVICES = ['database', 'inbucket', 'redis', 'minio', 'gotenberg'];
+const COMPOSE_SERVICES = ['database', 'inbucket', 'redis', 'gotenberg'];
 
 function checkContainers() {
   const res = sh(`docker compose -f ${COMPOSE_FILE} ps --format json`);
@@ -191,8 +191,6 @@ const EXPECTED_PORTS = [
   { port: 54320, label: 'Postgres', expectOpen: true },
   { port: 9000, label: 'Inbucket (mail UI)', expectOpen: true },
   { port: 63790, label: 'Redis', expectOpen: true },
-  { port: 9001, label: 'MinIO console', expectOpen: true },
-  { port: 9002, label: 'MinIO API', expectOpen: true },
   { port: 3005, label: 'Gotenberg', expectOpen: true },
 ];
 
